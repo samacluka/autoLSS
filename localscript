@@ -1,0 +1,180 @@
+#!/bin/bash
+
+###############################################################################################################
+###                                                                                                         ###
+###   By: Otomakan Ihsotas                                                                                  ###
+###   Date: 16/05/2021                                                                                      ###
+###   Purpose: Connect Ledger Live to an Umbrel full node until such software is more readily accessible    ###
+###                                                                                                         ###
+###############################################################################################################
+
+# create a clean workspace
+mkdir wrkdir # making a temporary work space (deleted at the end)
+cd wrkdir # enter workspace
+WRKDIR=`pwd` # set a variable for the full path of the current directory
+
+# update package manager context
+sudo apt-get update -y
+
+# get required programs
+# install or update jq
+if ! command -v jq &> /dev/null; then # if jq (a command-line JSON processor used later) is NOT installed
+  sudo apt-get install jq -y # install jq
+else
+  sudo apt-get upgrade jq
+fi
+
+# install or upgrade python3
+if ! command -v python3 &> /dev/null; then # if jq (a command-line JSON processor used later) is NOT installed
+  sudo apt-get install python3 -y # install jq
+else
+  sudo apt-get upgrade python3 # upgrade if already installed
+fi
+
+# get resources
+curl -L https://raw.githubusercontent.com/LedgerHQ/satstack/master/scripts/getdescriptor --output getdescriptor # py script to get descriptors from ledger hardware
+curl -L https://raw.githubusercontent.com/LedgerHQ/satstack/master/scripts/requirements.txt --output requirements.txt # list of dependencies for getdescriptor
+curl -L https://raw.githubusercontent.com/LedgerHQ/satstack/master/lss.mainnet.json --output lss.json # configuration file for the satstack executable
+curl -L https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh --output add_udev_rules.sh # udev rules for ledger hardware
+
+wget -c https://github.com/LedgerHQ/satstack/releases/download/v0.12.0/satstack_0.12.0_Linux-amd64.tar.gz -O - | tar -xz # a pre compiled satstack executable
+
+# configure resource
+chmod 775 getdescriptor # make getdescriptor an executable file
+chmod 775 add_udev_rules.sh # make add_udev_rules.sh an executable file
+sed -i "s/construct.*/construct==2.10.61/" requirements.txt # replace the line that has 'construct' with 'construct==2.10.61'. Otherwise later in the process we get dependency issues. See: https://github.com/LedgerHQ/satstack/issues/50
+
+# set up USB udev rules
+sudo ./add_udev_rules.sh # add the udev rules to this computer
+sudo groupadd plugdev # create the plugdev group if it doesnt already exist (gracefully exits if the group does exist)
+sudo usermod -aG plugdev `whoami` # addd current user to the plugdev group
+echo 'UDEV rules configured successfully - this enables ledger live to read data from your ledger device on USB ports'
+
+# configure tor
+TOR_CONF_FILE='/etc/tor/torrc'
+TOR_PORT='9050'
+if systemctl --all --type service | grep -q 'tor'; then # if tor is installed
+
+  # Check for SockPort in configuration file (same as above)
+  if grep -q -m 1 '^#SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is commented out in the tor configuration file
+    sed -i 's/^#SocksPort/^SocksPort/' $TOR_CONF_FILE # uncomment the tor proxy configuration
+    TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
+  else
+    if grep -q -m 1 '^SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is present but not commented out
+      TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
+    else # tor proxy configuration line is not present
+      echo "SocksPort $TOR_PORT" >> /etc/tor/torrc # append a tor proxy to tor's config file
+    fi
+  fi
+
+  sudo systemctl restart tor # restart tor application
+  echo 'tor proxy configured'
+else # if tor is not installed
+  sudo apt-get install tor -y # install tor
+
+  # Check for SockPort in configuration file (same as above)
+  if grep -q -m 1 '^#SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is commented out in the tor configuration file
+    sed -i 's/^#SocksPort/SocksPort/' $TOR_CONF_FILE # uncomment the tor proxy configuration
+    TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
+  else
+    if grep -q -m 1 '^SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is present but not commented out
+      TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
+    else # tor proxy configuration line is not present
+      echo "SocksPort $TOR_PORT" >> /etc/tor/torrc # append a tor proxy to tor's config file
+    fi
+  fi
+
+  sudo systemctl start tor # start tor application
+  echo 'tor started'
+fi
+
+# install dependencies and get descriptors from HW wallet
+python3 -m pip install --upgrade pip # update pip just to be safe
+python3 -m venv venv # save the venv module (first venv) in the venv (second venv) directory
+source $WRKDIR/venv/bin/activate # load current shell as a python virtual environment
+
+pip install -r requirements.txt # install all dependencies
+echo ""
+echo "Don't worry about errors in this pip install - it will still work" #
+
+# Wait for HW wallet to be available
+echo ""
+echo "Please insert and unlock your ledger device"
+echo "Then open the bitcoin app"
+read -p "Press any key to continue... " -n1 -s # wait for key press to continue
+
+# set descriptors in JSON SatStack
+DESCRIPTORS=$(./getdescriptor --scheme $1 --chain $2 --account $3) # get the descriptors from the ledger hardware wallet
+
+deactivate # exit out of python virtual environment (venv)
+
+# format the descriptors (which are presently just strings) so they can be used as JSON objects
+DESCRIPTORS=$(printf '%s' "$DESCRIPTORS" | sed -e 's/External:\swpkh.*)/&\,/g') # add comma after the External descriptoronion
+DESCRIPTORS=$(printf '%s' "$DESCRIPTORS" | sed -e 's/wpkh.*)/\"&\"/') # wrap wpkh descriptor strings in ""
+DESCRIPTORS=$(printf '%s' "$DESCRIPTORS" | sed -e 's/External/\"&\"/') # wrap External in ""
+DESCRIPTORS=$(printf '%s' "$DESCRIPTORS" | sed -e 's/Internal/\"&\"/') # wrap Internal in ""
+
+# create temp files for jq (command-line JSON processor)
+touch tmp
+touch tmp2
+touch tmp3
+
+echo "{$DESCRIPTORS}" > tmp # wrap string in {} to make in JSON string
+echo "{\"rpcurl\": \"<ONION ADDRESS FROM umbrelscript>:8332\", \"rpcuser\": \"<RPC USER FROM umbrelscript>\", \"rpcpass\": \"<RPC PASSWORD FROM umbrelscript>\", \"torporxy\": \"socks5://localhost:$TOR_PORT\"}" > tmp2
+
+# replace the external then internal field in the JSON file with the data from the descriptors
+# then add the tor proxy field.
+jq -s '.[0].accounts[0].external = .[1].External' lss.json tmp tmp2 | jq '.[0].accounts[0].internal = .[1].Internal' | jq '.[0] += .[2]' | jq '.[0]' >> tmp3
+cat tmp3 > lss.json # write to the JSON
+
+# clean up temp files
+rm tmp
+rm tmp2
+rm tmp3
+
+sudo rm -rf $HOME/lss # destory output directory if it exists
+mkdir $HOME/lss # make a ledger sat stack (lss) directory in the users home directory
+mv lss $HOME/lss/ # move users lss executable to the lss director
+mv lss.json $HOME/lss/ # move the lss JSON configuration file to the lss directory
+
+cd .. # exit out of the worksapce
+sudo rm -rf wrkdir # destroy the worksapce
+cd $HOME/lss # change directory to the new ledger satstack directory
+
+# give user further instructions
+echo
+echo
+echo '##########################################################'
+echo '####################     COMPLETE     ####################'
+echo '##########################################################'
+echo
+echo
+echo 'A directory (lss) has been added to your home directory (~): '
+pwd
+echo
+echo
+echo 'In here you can find: '
+ls -l
+echo
+echo
+echo 'lss is an executable file that starts ledger satstack'
+echo 'it reads from the lss.json configuration file'
+echo
+echo
+echo '##########################################################'
+echo '##################     NEXT STEPS     ####################'
+echo '##########################################################'
+echo
+echo 'if you have not done so already, ssh into your umbrel and execute umbrelscript'
+echo 'it will give you values that you need to add to the lss.json before you can start lss'
+echo
+echo 'if you dont know how to move files onto your umbrel look up the bash command scp'
+echo 'this is probably all you will need to move umbrelscript to your umbrel: scp umbrelscript umbrel@umbrel.local:~'
+echo
+echo 'once you have updated your lss.json file you can start the stastack program by running: ./lss'
+echo 'then you can start ledger live in a new shell by running: EXPLORER=http://0.0.0.0:20000 <Ledger Live executable>'
+echo 'clear your cache in ledger live, and wait for it to scan the blockchain'
+echo
+echo 'please read: https://github.com/LedgerHQ/satstack/blob/master/README.md for more details'
+
+exit 0

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+###############################################################################################################
+###                                                                                                         ###
+###   By: Otomakan Ihsotas                                                                                  ###
+###   Date: 16/05/2021                                                                                      ###
+###   Purpose: Connect Ledger Live to an Umbrel full node until such software is more readily accessible    ###
+###                                                                                                         ###
+###############################################################################################################
+
+# Get onion address and configure bitcoind to use it
+ONION=$(docker exec -it tor cat /var/lib/tor/bitcoin-rpc/hostname) # get the onion address from the hidden tor service that runs inside of umbrel's tor docker image
+echo "externalip=$ONION" >> $HOME/umbrel/bitcoin/bitcoin.conf # put the string inside of the bitcoin configuration file
+docker restart bitcoin # restart bitcoind to apply the changes to the configuration file
+
+# get RPC user name
+RPC_USER=$(cat $HOME/umbrel/.env | grep BITCOIN_RPC_USER) # get the bitcoind user
+RPC_USER=$(printf '%s' "$RPC_USER" | sed -e 's/^BITCOIN_RPC_USER=//g') # strip out the .env file formatting (everything before the = ) - all we want is the user name
+
+# get RPC password
+RPC_PASS=$(cat $HOME/umbrel/.env | grep BITCOIN_RPC_PASS) # get the bitcoind password
+RPC_PASS=$(printf '%s' "$RPC_PASS" | sed -e 's/^BITCOIN_RPC_PASS=//g') # strip out the .env file formatting (everything before the = ) - all we want is the password
+
+echo
+echo
+echo '##########################################################'
+echo '##################     NEXT STEPS     ####################'
+echo '##########################################################'
+echo
+echo 'Take the following [key: values] pairs and update your lss.json file'
+echo "rpcurl: $ONION"
+echo "rpcusr: $RPC_USER"
+echo "rpcpass: $RPC_PASS"
+echo
+echo 'Then you should be good to run the lss executable'
+echo
+echo 'NOTE: '
+echo 'The bash command echo is misbehaving on my umbrel and not letting me format strings the way I would like. So, as a work around Im writing the following note'
+echo 'be sure to add :8332 (bitcoind rpc tor port number) after your onion address (rpcurl)'
+echo 'so your json file shoud look something like this: '
+echo '"rpcurl": "<onion_address_here>:8332"'
+echo
+
+
+exit 0
