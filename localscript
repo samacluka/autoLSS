@@ -8,15 +8,17 @@
 ###                                                                                                         ###
 ###############################################################################################################
 
-# create a clean workspace
-mkdir wrkdir # making a temporary work space (deleted at the end)
-cd wrkdir # enter workspace
-WRKDIR=`pwd` # set a variable for the full path of the current directory
-
 # update package manager context
 sudo apt-get update -y
 
 # get required programs
+
+# ensure go is installed on the users system
+if ! command -v go &> /dev/null; then # if golang is NOT installed
+  echo "Please install golang on your system" # prompt user to install go
+  exit 1
+fi
+
 # install or update jq
 if ! command -v jq &> /dev/null; then # if jq (a command-line JSON processor used later) is NOT installed
   sudo apt-get install jq -y # install jq
@@ -31,13 +33,29 @@ else
   sudo apt-get upgrade python3 # upgrade if already installed
 fi
 
+# create a clean workspace
+mkdir wrkdir # making a temporary work space (deleted at the end)
+cd wrkdir # enter workspace
+WRKDIR=`pwd` # set a variable for the full path of the current directory
+
+# get mage - required for building ledger satstack from source
+git clone https://github.com/magefile/mage # get mage
+cd mage # jump into mage directory
+go run bootstrap.go # configure mage
+cd $WRKDIR # exit mage directory (back to wrkdir)
+
+# build satstack from source
+git clone https://github.com/LedgerHQ/satstack.git # get the satstack repo
+cd satstack # go into satstack directory
+$HOME/go/bin/mage build # build satstack from source using mage
+mv lss $WRKDIR # move the executable to our wrkdir
+cd $WRKDIR # exit the satstack directory (back to wrkdir)
+
 # get resources
 curl -L https://raw.githubusercontent.com/LedgerHQ/satstack/master/scripts/getdescriptor --output getdescriptor # py script to get descriptors from ledger hardware
 curl -L https://raw.githubusercontent.com/LedgerHQ/satstack/master/scripts/requirements.txt --output requirements.txt # list of dependencies for getdescriptor
 curl -L https://raw.githubusercontent.com/LedgerHQ/satstack/master/lss.mainnet.json --output lss.json # configuration file for the satstack executable
 curl -L https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh --output add_udev_rules.sh # udev rules for ledger hardware
-
-wget -c https://github.com/LedgerHQ/satstack/releases/download/v0.12.0/satstack_0.12.0_Linux-amd64.tar.gz -O - | tar -xz # a pre compiled satstack executable
 
 # configure resource
 chmod 775 getdescriptor # make getdescriptor an executable file
