@@ -8,17 +8,27 @@
 ###                                                                                                         ###
 ###############################################################################################################
 
+BTC_CONF=$HOME/umbrel/bitcoin/bitcoin.conf # set variable for bitcoin.conf file
+UMBREL_ENV=$HOME/umbrel/.env # set variable for umbrel envirnoment file
+
+# Set bitcoind as an RPC server
+echo "" >> $BTC_CONF # blank line (for formatting)
+echo "# Enable RPC Server" >> $BTC_CONF # comment line
+echo "server=1" >> $BTC_CONF # enable bitcoind to run as an rpc server
+
 # Get onion address and configure bitcoind to use it
 ONION=$(docker exec -it tor cat /var/lib/tor/bitcoin-rpc/hostname) # get the onion address from the hidden tor service that runs inside of umbrel's tor docker image
-echo "externalip=$ONION" >> $HOME/umbrel/bitcoin/bitcoin.conf # put the string inside of the bitcoin configuration file
+echo "" >> $BTC_CONF # blank line (for formatting)
+echo "# Set publicly reachable address" # Tell bitcoin about its publicly reachable addresses
+echo "externalip=$ONION" >> $BTC_CONF # put the string inside of the bitcoin configuration file
 docker restart bitcoin # restart bitcoind to apply the changes to the configuration file
 
 # get RPC user name
-RPC_USER=$(cat $HOME/umbrel/.env | grep BITCOIN_RPC_USER) # get the bitcoind user
+RPC_USER=$(cat $UMBREL_ENV | grep 'BITCOIN_RPC_USER') # get the bitcoind user
 RPC_USER=$(printf '%s' "$RPC_USER" | sed -e 's/^BITCOIN_RPC_USER=//g') # strip out the .env file formatting (everything before the = ) - all we want is the user name
 
 # get RPC password
-RPC_PASS=$(cat $HOME/umbrel/.env | grep BITCOIN_RPC_PASS) # get the bitcoind password
+RPC_PASS=$(cat $UMBREL_ENV | grep 'BITCOIN_RPC_PASS') # get the bitcoind password
 RPC_PASS=$(printf '%s' "$RPC_PASS" | sed -e 's/^BITCOIN_RPC_PASS=//g') # strip out the .env file formatting (everything before the = ) - all we want is the password
 
 echo

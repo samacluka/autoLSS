@@ -55,34 +55,14 @@ TOR_CONF_FILE='/etc/tor/torrc'
 TOR_PORT='9050'
 if systemctl --all --type service | grep -q 'tor'; then # if tor is installed
 
-  # Check for SockPort in configuration file (same as above)
-  if grep -q -m 1 '^#SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is commented out in the tor configuration file
-    sed -i 's/^#SocksPort/^SocksPort/' $TOR_CONF_FILE # uncomment the tor proxy configuration
-    TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
-  else
-    if grep -q -m 1 '^SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is present but not commented out
-      TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
-    else # tor proxy configuration line is not present
-      echo "SocksPort $TOR_PORT" >> /etc/tor/torrc # append a tor proxy to tor's config file
-    fi
-  fi
+  sudo echo "SocksPort $TOR_PORT" >> $TOR_CONF_FILE # append a tor proxy to tor's config file
 
   sudo systemctl restart tor # restart tor application
   echo 'tor proxy configured'
 else # if tor is not installed
   sudo apt-get install tor -y # install tor
 
-  # Check for SockPort in configuration file (same as above)
-  if grep -q -m 1 '^#SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is commented out in the tor configuration file
-    sed -i 's/^#SocksPort/SocksPort/' $TOR_CONF_FILE # uncomment the tor proxy configuration
-    TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
-  else
-    if grep -q -m 1 '^SocksPort' $TOR_CONF_FILE; then # if tor proxy configuration is present but not commented out
-      TOR_PORT=$(grep -m 1 '^SocksPort' $TOR_CONF_FILE | grep -o '[0-9]*' | head -1) # get the port number from the configuration file
-    else # tor proxy configuration line is not present
-      echo "SocksPort $TOR_PORT" >> /etc/tor/torrc # append a tor proxy to tor's config file
-    fi
-  fi
+  sudo echo "SocksPort $TOR_PORT" >> $TOR_CONF_FILE # append a tor proxy to tor's config file
 
   sudo systemctl start tor # start tor application
   echo 'tor started'
