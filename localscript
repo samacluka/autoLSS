@@ -60,7 +60,7 @@ curl -L https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_ru
 # configure resource
 chmod 775 getdescriptor # make getdescriptor an executable file
 chmod 775 add_udev_rules.sh # make add_udev_rules.sh an executable file
-sed -i "s/construct.*/construct==2.10.61/" requirements.txt # replace the line that has 'construct' with 'construct==2.10.61'. Otherwise later in the process we get dependency issues. See: https://github.com/LedgerHQ/satstack/issues/50
+# sed -i "s/construct.*/construct==2.10.61/" requirements.txt # replace the line that has 'construct' with 'construct==2.10.61'. Otherwise later in the process we get dependency issues. See: https://github.com/LedgerHQ/satstack/issues/50
 
 # set up USB udev rules
 sudo ./add_udev_rules.sh # add the udev rules to this computer
