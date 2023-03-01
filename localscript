@@ -93,7 +93,7 @@ source $WRKDIR/venv/bin/activate # load current shell as a python virtual enviro
 
 pip install -r requirements.txt # install all dependencies
 echo ""
-echo "Don't worry about errors in this pip install - it will still work" #
+echo "Don't worry about errors in this pip install - it will still work"
 
 # Wait for HW wallet to be available
 echo ""
@@ -114,11 +114,20 @@ DESCRIPTORS=$(printf '%s' "$DESCRIPTORS" | sed -e 's/Internal/\"&\"/') # wrap In
 
 # create temp files for jq (command-line JSON processor)
 touch tmp
-touch tmp2
 touch tmp3
 
 echo "{$DESCRIPTORS}" > tmp # wrap string in {} to make in JSON string
-echo "{\"rpcurl\": \"<ONION ADDRESS FROM umbrelscript>:8332\", \"rpcuser\": \"<RPC USER FROM umbrelscript>\", \"rpcpass\": \"<RPC PASSWORD FROM umbrelscript>\", \"torporxy\": \"socks5://localhost:$TOR_PORT\"}" > tmp2
+
+if ls $WRKDIR/../tmp2 | grep -q 'tmp2'; then # if tmp2 exists
+
+  mv $WRKDIR/../tmp2 $WRKDIR/tmp2
+
+else
+  
+  touch tmp2
+  echo "{\"rpcurl\": \"<ONION ADDRESS FROM umbrelscript>:8332\", \"rpcuser\": \"<RPC USER FROM umbrelscript>\", \"rpcpass\": \"<RPC PASSWORD FROM umbrelscript>\", \"torproxy\": \"socks5://localhost:$TOR_PORT\"}" > tmp2
+
+fi
 
 # replace the external then internal field in the JSON file with the data from the descriptors
 # then add the tor proxy field.
@@ -132,7 +141,7 @@ rm tmp3
 
 sudo rm -rf $HOME/lss # destory output directory if it exists
 mkdir $HOME/lss # make a ledger sat stack (lss) directory in the users home directory
-mv lss $HOME/lss/ # move users lss executable to the lss director
+mv lss $HOME/lss/ # move users lss executable to the lss directory
 mv lss.json $HOME/lss/ # move the lss JSON configuration file to the lss directory
 
 cd .. # exit out of the worksapce
@@ -163,16 +172,18 @@ echo '##########################################################'
 echo '##################     NEXT STEPS     ####################'
 echo '##########################################################'
 echo
-echo 'if you have not done so already, ssh into your umbrel and execute umbrelscript'
-echo 'it will give you values that you need to add to the lss.json before you can start lss'
-echo
-echo 'if you dont know how to move files onto your umbrel look up the bash command scp'
-echo 'this is probably all you will need to move umbrelscript to your umbrel: scp umbrelscript umbrel@umbrel.local:~'
-echo
-echo 'once you have updated your lss.json file you can start the stastack program by running: ./lss'
+# echo 'if you have not done so already, ssh into your umbrel and execute umbrelscript'
+# echo 'it will give you values that you need to add to the lss.json before you can start lss'
+# echo
+# echo 'if you dont know how to move files onto your umbrel look up the bash command scp'
+# echo 'this is probably all you will need to move umbrelscript to your umbrel: scp umbrelscript umbrel@umbrel.local:~'
+# echo
+# echo 'once you have updated your lss.json file you can'
+echo 'start the stastack program by running: ./lss'
 echo 'then you can start ledger live in a new shell by running: EXPLORER=http://0.0.0.0:20000 <Ledger Live executable>'
 echo 'clear your cache in ledger live, and wait for it to scan the blockchain'
 echo
 echo 'please read: https://github.com/LedgerHQ/satstack/blob/master/README.md for more details'
+
 
 exit 0

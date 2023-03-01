@@ -8,19 +8,27 @@
 ###                                                                                                         ###
 ###############################################################################################################
 
-BTC_CONF=$HOME/umbrel/app-data/bitcoin/data/bitcoin/bitcoin.conf # set variable for bitcoin.conf file
+BTC_CONF=$HOME/umbrel/app-data/bitcoin/data/bitcoin/umbrel-bitcoin.conf # set variable for bitcoin.conf file
 UMBREL_ENV=$HOME/umbrel/.env # set variable for umbrel envirnoment file
 
 # Set bitcoind as an RPC server
-# echo "" >> $BTC_CONF # blank line (for formatting)
-# echo "# Enable RPC Server" >> $BTC_CONF # comment line
-# echo "server=1" >> $BTC_CONF # enable bitcoind to run as an rpc server
+# if grep -q -F 'server=' $BTC_CONF; then 
+#     sed -i 's/server=\d/server=1/g' $BTC_CONF; 
+# else
+#     echo "" >> $BTC_CONF # blank line (for formatting)
+#     echo "# Enable RPC Server" >> $BTC_CONF # comment line
+#     echo "server=1" >> $BTC_CONF # enable bitcoind to run as an rpc server
+# fi
 
 # Get onion address and configure bitcoind to use it
-ONION=$(docker exec -it bitcoin_tor_1 cat /data/app-bitcoin-rpc/hostname) # get the onion address from the hidden tor service that runs inside of umbrel's tor docker image
-# echo "" >> $BTC_CONF # blank line (for formatting)
-# echo "# Set publicly reachable address" # Tell bitcoin about its publicly reachable addresses
-# echo "externalip=$ONION" >> $BTC_CONF # put the string inside of the bitcoin configuration file
+ONION=$(docker exec bitcoin_tor_1 cat /data/app-bitcoin-rpc/hostname) # get the onion address from the hidden tor service that runs inside of umbrel's tor docker image
+# if grep -q -F 'externalip=' $BTC_CONF; then 
+#     sed -i $(printf 's/externalip=.*/externalip=%s/g' "$ONION") $BTC_CONF; 
+# else
+#     echo "" >> $BTC_CONF # blank line (for formatting)
+#     echo "# Set publicly reachable address" # Tell bitcoin about its publicly reachable addresses
+#     echo "externalip=$ONION" >> $BTC_CONF # put the string inside of the bitcoin configuration file
+# fi
 # docker restart bitcoin_bitcoind_1 # restart bitcoind to apply the changes to the configuration file
 
 # get RPC user name
@@ -35,25 +43,29 @@ RPC_PASS=$(printf '%s' "$RPC_PASS" | sed -e 's/^BITCOIN_RPC_PASS=//g') # strip o
 RPC_PORT=$(cat $UMBREL_ENV | grep 'BITCOIN_RPC_PORT') # get the bitcoind port
 RPC_PORT=$(printf '%s' "$RPC_PORT" | sed -e 's/^BITCOIN_RPC_PORT=//g') # strip out the .env file formatting (everything before the = ) - all we want is the port
 
-echo
-echo
-echo '##########################################################'
-echo '##################     NEXT STEPS     ####################'
-echo '##########################################################'
-echo
-echo 'Take the following [key: values] pairs and update your lss.json file'
-echo "rpcurl: $ONION"
-echo "rpcusr: $RPC_USER"
-echo "rpcpass: $RPC_PASS"
-echo
-echo 'Then you should be good to run the lss executable'
-echo
-echo 'NOTE: '
-echo 'The bash command echo is misbehaving on my umbrel and not letting me format strings the way I would like. So, as a work around Im writing the following note'
-echo 'be sure to add :8332 (bitcoind rpc tor port number) after your onion address (rpcurl)'
-echo 'so your json file shoud look something like this: '
-echo '"rpcurl": "<onion_address_here>:8332"'
-echo
+# Writing to file to be used by localscript.sh
+TOR_PORT='9050'
+touch tmp2
+echo "{\"rpcurl\": \"$ONION:$RPC_PORT\", \"rpcuser\": \"$RPC_USER\", \"rpcpass\": \"$RPC_PASS\", \"torproxy\": \"socks5://localhost:$TOR_PORT\"}" > tmp2
 
+# echo
+# echo
+# echo '##########################################################'
+# echo '##################     NEXT STEPS     ####################'
+# echo '##########################################################'
+# echo
+# echo 'Take the following [key: values] pairs and update your lss.json file'
+# echo "rpcurl: $ONION"
+# echo "rpcusr: $RPC_USER"
+# echo "rpcpass: $RPC_PASS"
+# echo
+# echo 'Then you should be good to run the lss executable'
+# echo
+# echo 'NOTE: '
+# echo 'The bash command echo is misbehaving on my umbrel and not letting me format strings the way I would like. So, as a work around Im writing the following note'
+# echo 'be sure to add :8332 (bitcoind rpc tor port number) after your onion address (rpcurl)'
+# echo 'so your json file shoud look something like this: '
+# echo '"rpcurl": "<onion_address_here>:8332"'
+# echo
 
 exit 0
